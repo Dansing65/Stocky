@@ -231,7 +231,7 @@ def score_with_ai(article: dict) -> dict | None:
             source=article["source"],
         )
         msg = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-opus-4-5",
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )
