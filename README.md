@@ -1,62 +1,90 @@
-# 📈 StockSentinel — Discord Trading Bot
+# 📈 StockSentinel v2 — News + Technical Discord Bot
 
-StockSentinel scans the stock market every 15 minutes during market hours and posts high-confidence trade setups directly to your Discord server, complete with **entry price**, **price target**, and **stop loss**.
+StockSentinel v2 combines **real-time news catalyst detection** with **technical analysis** to find the highest-conviction trade setups. When both a news catalyst and a technical signal fire on the same ticker at the same time, it posts a special ⚡ **High Conviction Combo Alert**.
 
 ---
 
-## 🚀 Quick Start (5 steps)
+## 🧠 How It Works
 
-### Step 1 — Create a Discord Bot
+```
+Every 10 minutes (pre-market → after-hours):
+  📰 Fetch news from Finnhub + NewsAPI + SEC EDGAR
+      ↓
+  🤖 Claude AI reads each headline and scores it 1-10
+      ↓
+  📣 High-scoring catalysts (≥6/10) get posted to Discord
 
-1. Go to <https://discord.com/developers/applications>
-2. Click **New Application** → give it a name (e.g. "StockSentinel")
-3. Open the **Bot** tab → click **Add Bot**
-4. Under **Privileged Gateway Intents**, enable:
-   - ✅ Message Content Intent
-5. Click **Reset Token** → copy the token (keep it secret!)
+Every 15 minutes (market hours only):
+  📊 Technical scan runs 4 strategies on your watchlist
+      ↓
+  If the same ticker has BOTH a news catalyst + tech signal:
+      ↓
+  ⚡ HIGH CONVICTION COMBO ALERT posted (highest priority)
+```
 
-### Step 2 — Add the Bot to Your Server
+---
 
-1. In the Developer Portal, go to **OAuth2 → URL Generator**
-2. Check `bot` under Scopes
-3. Under Bot Permissions, check:
-   - `Send Messages`
-   - `Embed Links`
-   - `Read Message History`
-   - `View Channels`
-4. Copy the generated URL, open it in your browser, and add the bot to your server
+## 🚀 Setup Guide
 
-### Step 3 — Get Your Alerts Channel ID
+### Step 1 — Get Your API Keys (all free tiers available)
 
-1. In Discord, open **User Settings → Advanced** → enable **Developer Mode**
-2. Right-click the channel where you want trade alerts → **Copy Channel ID**
+**Anthropic (Claude AI) — Required for news scoring**
+1. Go to **console.anthropic.com**
+2. Sign up → go to **API Keys** → click **Create Key**
+3. Copy the key
 
-### Step 4 — Configure the Bot
+**Finnhub — Real-time stock news**
+1. Go to **finnhub.io**
+2. Sign up for free → go to **Dashboard**
+3. Copy your API key
+
+**NewsAPI — Broad financial news**
+1. Go to **newsapi.org**
+2. Click **Get API Key** → sign up free
+3. Copy your API key
+
+---
+
+### Step 2 — Discord Setup
+
+1. Go to **discord.com/developers/applications**
+2. Create a new application → go to **Bot**
+3. Enable **Message Content Intent**
+4. Copy your bot token
+5. Go to **OAuth2 → URL Generator** → check `bot`
+6. Under permissions check: Send Messages, Embed Links, Read Message History, View Channels
+7. Open the generated URL → add bot to your server
+
+**Optional: Create two channels in Discord**
+- `#trade-alerts` — for technical signals
+- `#news-catalyst` — for news alerts
+Right-click each → Copy Channel ID
+
+---
+
+### Step 3 — Configure .env
 
 ```bash
-# Copy the example env file
 cp .env.example .env
-
-# Edit .env and fill in your values
-DISCORD_TOKEN=your_bot_token_here
-ALERTS_CHANNEL_ID=your_channel_id_here
-SCAN_INTERVAL_MINUTES=15   # how often to scan (default: every 15 min)
 ```
 
-### Step 5 — Install & Run
+Open `.env` and fill in:
+```
+DISCORD_TOKEN=your_discord_bot_token
+ALERTS_CHANNEL_ID=your_alerts_channel_id
+NEWS_CHANNEL_ID=your_news_channel_id
+ANTHROPIC_API_KEY=your_anthropic_key
+FINNHUB_API_KEY=your_finnhub_key
+NEWS_API_KEY=your_newsapi_key
+```
+
+---
+
+### Step 4 — Install & Run
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Start the bot
 python bot.py
-```
-
-You should see:
-```
-[INFO] Logged in as StockSentinel#1234
-[INFO] Scan loop started — every 15 minutes.
 ```
 
 ---
@@ -65,99 +93,68 @@ You should see:
 
 | Command | Description |
 |---|---|
-| `!scan` | Run an immediate market scan |
-| `!quote AAPL` | Get a live quote for any ticker |
-| `!watchlist` | See all tickers being monitored |
-| `!addwatch TSLA` | Add a ticker (mod permission required) |
-| `!status` | Show bot status & next scheduled scan |
-| `!help` | List all commands |
+| `!scan` | Immediate technical pattern scan |
+| `!news` | Immediate news catalyst scan |
+| `!news AAPL` | News scan filtered to one ticker |
+| `!quote NVDA` | Live quote for any ticker |
+| `!watchlist` | View all monitored tickers |
+| `!addwatch TSLA` | Add ticker (mod permission required) |
+| `!status` | Bot health & scan intervals |
+| `!help` | All commands |
 
 ---
 
-## 📡 How Scanning Works
+## 📡 Alert Types
 
-The bot runs **4 technical strategies** on every ticker in your watchlist:
+### 🟢/🔴 Technical Signal
+Fires when a chart pattern meets the confidence threshold:
+- RSI Oversold Bounce
+- MACD Crossover
+- Volume Breakout
+- EMA 9/21 Cross
 
-| Strategy | Signal | Logic |
-|---|---|---|
-| **RSI Oversold Bounce** | BUY | RSI(14) < 30, reverting upward |
-| **MACD Crossover** | BUY / SELL | MACD line crosses signal line |
-| **Volume Breakout** | BUY | Price breaks 20-day high on 1.8× avg volume |
-| **EMA 9/21 Cross** | BUY / SELL | Short-term EMA crosses medium-term EMA |
+### 📰 News Catalyst
+Fires when Claude AI scores a headline ≥ 6/10:
+- Earnings beats/misses
+- FDA approvals/rejections
+- Analyst upgrades/downgrades
+- Insider buying clusters
+- Major contract wins
+- SEC 8-K filings
 
-Each setup is scored for **confidence (0–100%)**. Only setups scoring ≥ 60% are posted.
-
-### Entry / Target / Stop Calculation
-
-All levels use **ATR (Average True Range)** to size properly to each ticker's volatility:
-
-```
-Entry  = current close price
-Target = Entry + (ATR × 2.0)   for BUY
-Stop   = Entry − (ATR × 1.0)   for BUY
-```
-This always produces at least a **2:1 risk-to-reward ratio**.
+### ⚡ Combo Alert (Highest Conviction)
+Fires when the **same ticker** has BOTH a news catalyst AND a technical setup at the same time. This is the signal to pay the most attention to.
 
 ---
 
 ## 🛠️ Customization
 
-### Change the watchlist
-Edit `watchlist.txt` — one ticker per line. Or use `!addwatch` in Discord.
-
-### Change scan frequency
-Set `SCAN_INTERVAL_MINUTES` in `.env`. Minimum recommended: 5 minutes.
-
-### Adjust confidence threshold
-In `scanner.py`, change `MIN_CONFIDENCE = 60` (higher = fewer, higher-quality alerts).
-
-### Adjust risk/reward sizing
-In `scanner.py`:
-```python
-ATR_MULT_TARGET = 2.0   # higher = wider target
-ATR_MULT_STOP   = 1.0   # higher = wider stop
+**Change minimum catalyst score** (in `.env`):
 ```
+MIN_CATALYST_SCORE=7   # stricter — fewer but higher quality alerts
+MIN_CATALYST_SCORE=5   # looser — more alerts
+```
+
+**Change scan frequency** (in `.env`):
+```
+NEWS_INTERVAL_MINUTES=5    # scan news every 5 min
+SCAN_INTERVAL_MINUTES=30   # tech scan every 30 min
+```
+
+**Edit your watchlist**: modify `watchlist.txt` (one ticker per line) or use `!addwatch`
 
 ---
 
-## ☁️ Running 24/7
+## ☁️ Running 24/7 on Railway
 
-To keep the bot running continuously, host it on a server:
-
-**Railway (easiest — free tier available)**
-```bash
-railway init
-railway up
-```
-
-**Fly.io**
-```bash
-fly launch
-fly deploy
-```
-
-**VPS / Linux server**
-```bash
-# Using screen
-screen -S stocksentinel
-python bot.py
-# Ctrl+A then D to detach
-
-# Or use systemd / pm2 for production
-```
+1. Push files to a **private GitHub repo**
+2. Go to **railway.app** → New Project → Deploy from GitHub
+3. Add all your `.env` variables in Railway's **Variables** tab
+4. Set start command to `python bot.py`
+5. Deploy — done!
 
 ---
 
 ## ⚠️ Disclaimer
 
-> **This bot is for educational and informational purposes only. It does not constitute financial advice. Always do your own research before making any investment decisions. Past technical signals do not guarantee future results.**
-
----
-
-## 📦 Dependencies
-
-- `discord.py` — Discord API wrapper
-- `yfinance` — Free market data (Yahoo Finance)
-- `pandas` / `numpy` — Data manipulation & indicator math
-- `python-dotenv` — Environment variable management
-- `pytz` — Timezone handling for market hours
+> This bot is for educational and informational purposes only. It does not constitute financial advice. Always do your own research. Past signals do not guarantee future results. Never risk money you cannot afford to lose.
